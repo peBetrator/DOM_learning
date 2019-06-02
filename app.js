@@ -3,6 +3,16 @@ var budgetController = (function() {
     this.id = id;
     this.description = description;
     this.value = value;
+    this.percentage = 1;
+  };
+
+  Expense.prototype.calcPercentage = function(totalIncome) {
+    this.percentage =
+      totalIncome > 0 ? Math.round((this.value / totalIncome) * 100) : -1;
+  };
+
+  Expense.prototype.getPercentage = function() {
+    return this.percentage;
   };
 
   var Income = function(id, description, value) {
@@ -75,9 +85,21 @@ var budgetController = (function() {
       // calculate the Budget: income - expenses
       data.budget = data.totals.inc - data.totals.exp;
       // calculate the percentage of income that we spent
-      if (data.totals.inc > 0)
-        data.percentage = Math.round((data.totals.exp / data.totals.inc) * 100);
-      else data.percentage = -1;
+      data.percentage =
+        data.totals.inc > 0
+          ? Math.round((data.totals.exp / data.totals.inc) * 100)
+          : -1;
+    },
+    calculatePercentages: function() {
+      data.allItems.exp.forEach(function(current) {
+        current.calcPercentage(data.totals.inc);
+      });
+    },
+    getPercentages: function() {
+      var allPercs = data.allItems.exp.map(function(cur) {
+        return cur.getPercentage();
+      });
+      return allPercs;
     },
     getBudget: function() {
       return {
@@ -108,7 +130,9 @@ var UIController = (function() {
     expensesLabel: ".budget__expenses--value",
     percentageLabel: ".budget__expenses--percentage",
 
-    container: ".container"
+    container: ".container",
+
+    expencePercLabel: ".item__percentage"
   };
 
   return {
@@ -149,7 +173,7 @@ var UIController = (function() {
         DOMstrings.inputDescription + ", " + DOMstrings.inputValue
       );
       fieldsArr = Array.prototype.slice.call(fields);
-      fieldsArr.forEach(function(current, index, array) {
+      fieldsArr.forEach(function(current) {
         current.value = "";
       });
       fieldsArr[0].focus();
@@ -157,12 +181,24 @@ var UIController = (function() {
     displayBudget: function(obj) {
       document.querySelector(DOMstrings.budgetLabel).textContent = obj.budget;
       document.querySelector(DOMstrings.incomeLabel).textContent = obj.totalInc;
-      document.querySelector(DOMstrings.expensesLabel).textContent =
-        obj.totalExp;
-      if (obj.percentage > 0)
-        document.querySelector(DOMstrings.percentageLabel).textContent =
-          obj.percentage + "%";
-      else document.querySelector(DOMstrings.percentageLabel).textContent = "-";
+      document.querySelector(DOMstrings.expensesLabel).textContent = obj.totalExp;
+
+      document.querySelector(DOMstrings.percentageLabel).textContent =
+        obj.percentage > 0 ? obj.percentage + "%" : "-";
+    },
+    displayPercentages: function(percentages) {
+      var fields = document.querySelectorAll(DOMstrings.expencePercLabel);
+
+      var nodeListForEach = function(nodeList, callback) {
+        for (let i = 0; i < nodeList.length; i++) {
+          callback(nodeList[i], i);
+        }
+      };
+
+      nodeListForEach(fields, function(current, index) {
+        current.textContent =
+          percentages[index] > 0 ? percentages[index] + "%" : "-";
+      });
     },
     getDOMstrings: function() {
       return DOMstrings;
@@ -200,6 +236,12 @@ var appController = (function(budgetCtrl, UICtrl) {
     UICtrl.displayBudget(budget);
   };
 
+  var updatePercentages = function() {
+    budgetCtrl.calculatePercentages();
+    var percentages = budgetCtrl.getPercentages();
+    UICtrl.displayPercentages(percentages);
+  };
+
   var ctrlAddItem = function() {
     var input, newItem;
     // 1. Get the field input data
@@ -219,6 +261,8 @@ var appController = (function(budgetCtrl, UICtrl) {
       UICtrl.clearFields();
       // 5. Display the budget on the UI
       updateBudget();
+
+      updatePercentages();
     }
   };
 
@@ -236,6 +280,8 @@ var appController = (function(budgetCtrl, UICtrl) {
       UICtrl.deleteListItem(itemID);
 
       updateBudget();
+
+      updatePercentages();
     }
   };
 
